@@ -1,28 +1,31 @@
-package valve_vdf_binary
+package valve_vdf_binary_test
 
 import (
-	"bufio"
 	"bytes"
 	_ "embed"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	vdf "github.com/TimDeve/valve-vdf-binary"
+	test "github.com/stretchr/testify/require"
 )
 
 //go:embed test-files/shortcuts.vdf
 var shortcutVdf []byte
 
 func TestParseShortcut(t *testing.T) {
-	parsedShortcuts, err := parseShortcutsFromBytes(shortcutVdf)
-	if err != nil {
-		t.Error(err)
-		return
+	shortcuts, err := parseShortcutsFromBytes(shortcutVdf)
+
+	test.Nil(t, err)
+
+	expected := []vdf.Shortcut{
+		{AppName: "Control", Exe: "\"C:\\Program Files\\Epic Games\\Control\\Control_DX12.exe\""},
+		{AppName: "Cyberpunk 2077", Exe: "\"C:\\Program Files (x86)\\GOG Galaxy\\GalaxyClient.exe\""},
+		{AppName: "Skate 3", Exe: "\"C:\\Users\\user\\scoop\\apps\\RPCS3\\current\\rpcs3.exe\""},
 	}
 
-	shortcuts := []Shortcut{{"Control"}, {"Cyberpunk 2077"}, {"Skate 3"}}
-
-	require.Equal(t, parsedShortcuts, shortcuts)
+	test.Equal(t, expected, shortcuts)
 }
 
-func parseShortcutsFromBytes(buf []byte) ([]Shortcut, error) {
-	return parseShortcuts(bufio.NewReader(bytes.NewReader(buf)))
+func parseShortcutsFromBytes(buf []byte) ([]vdf.Shortcut, error) {
+	return vdf.ParseShortcuts(bytes.NewReader(buf))
 }

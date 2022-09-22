@@ -5,130 +5,45 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 )
 
-const (
-	vdfMarkerMap         byte = 0x00
-	vdfMarkerString      byte = 0x01
-	vdfMarkerNumber      byte = 0x02
-	vdfMarkerEndOfMap    byte = 0x08
-	vdfMarkerEndOfString byte = 0x00
-)
+func Parse(r io.Reader) (VdfValue, error) {
+	buf := bufio.NewReader(r)
 
-type vdfMap map[string]vdfValue
+	byteArr, err := buf.Peek(1)
 
-type vdfValue struct {
-	data any
+	if err == io.EOF {
+		return vdfValue{}, errors.New("The vdf you are trying to parse appears empty")
+	}
+
+	if err != nil {
+		return vdfValue{}, err
+	}
+
+	b := byteArr[0]
+
+	if b != vdfMarkerMap &&
+		b != vdfMarkerString &&
+		b != vdfMarkerNumber &&
+		b != vdfMarkerEndOfMap {
+		return vdfValue{}, errors.New(
+			"The vdf you are trying to parse appears not to be binary," +
+				"are you sure it is not a text vdf?",
+		)
+	}
+
+	p, err := parseMap(buf)
+
+	if err == io.EOF {
+		return vdfValue{}, errors.New("Reached the end of the file earlier than expected, your file might be corrupted")
+	}
+
+	return p, err
 }
 
-func (sv *vdfValue) asString() (string, bool) {
-	s, ok := sv.data.(string)
-	return s, ok
-}
-
-func (sv *vdfValue) getString(key string) (string, bool) {
-	m, ok := sv.asMap()
-	if !ok {
-		return "", ok
-	}
-	v, ok := m[key]
-	if !ok {
-		return "", ok
-	}
-	return v.asString()
-}
-
-func (sv *vdfValue) asUint() (uint32, bool) {
-	i, ok := sv.data.(uint32)
-	return i, ok
-}
-
-func (sv *vdfValue) getUint(key string) (uint32, bool) {
-	m, ok := sv.asMap()
-	if !ok {
-		return 0, ok
-	}
-	v, ok := m[key]
-	if !ok {
-		return 0, ok
-	}
-	return v.asUint()
-}
-
-func (sv *vdfValue) asInt() (int, bool) {
-	i, ok := sv.data.(uint32)
-	return int(i), ok
-}
-
-func (sv *vdfValue) getInt(key string) (int, bool) {
-	m, ok := sv.asMap()
-	if !ok {
-		return 0, ok
-	}
-	v, ok := m[key]
-	if !ok {
-		return 0, ok
-	}
-	return v.asInt()
-}
-
-func (sv *vdfValue) asFloat() (float32, bool) {
-	f, ok := sv.data.(uint32)
-	return float32(f), ok
-}
-
-func (sv *vdfValue) getFloat(key string) (float32, bool) {
-	m, ok := sv.asMap()
-	if !ok {
-		return 0, ok
-	}
-	v, ok := m[key]
-	if !ok {
-		return 0, ok
-	}
-	return v.asFloat()
-}
-
-func (sv *vdfValue) asBool() (bool, bool) {
-	i, ok := sv.data.(uint32)
-	if i == 0 {
-		return false, ok
-	} else {
-		return true, ok
-	}
-}
-
-func (sv *vdfValue) getBool(key string) (bool, bool) {
-	m, ok := sv.asMap()
-	if !ok {
-		return false, ok
-	}
-	v, ok := m[key]
-	if !ok {
-		return false, ok
-	}
-	return v.asBool()
-}
-
-func (sv *vdfValue) asMap() (vdfMap, bool) {
-	m, ok := sv.data.(map[string]vdfValue)
-	return m, ok
-}
-
-func (sv *vdfValue) getMap(key string) (vdfMap, bool) {
-	m, ok := sv.asMap()
-	if !ok {
-		return nil, ok
-	}
-	v, ok := m[key]
-	if !ok {
-		return nil, ok
-	}
-	return v.asMap()
-}
-
-func parse(buf *bufio.Reader) (vdfValue, error) {
-	m := make(map[string]vdfValue)
+func parseMap(buf *bufio.Reader) (vdfValue, error) {
+	m := make(VdfMap)
 
 	for {
 		b, err := buf.ReadByte()
@@ -148,13 +63,13 @@ func parse(buf *bufio.Reader) (vdfValue, error) {
 		value, err := vdfValue{}, nil
 		switch b {
 		case vdfMarkerMap:
-			value, err = parse(buf)
+			value, err = parseMap(buf)
 		case vdfMarkerNumber:
 			value, err = parseNumber(buf)
 		case vdfMarkerString:
 			value, err = parseStringValue(buf)
 		default:
-			err = fmt.Errorf("Unexpected byte: 0x%02x", b)
+			err = fmt.Errorf("Unexpected byte: 0x%02x, your file might be corrupted", b)
 		}
 
 		if err != nil {
