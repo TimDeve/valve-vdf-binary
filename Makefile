@@ -1,8 +1,8 @@
-.PHONY=test
+.PHONY: test
 test:
 	go test ./...
 
-.PHONY=fmt
+.PHONY: fmt
 fmt:
 	go fmt
 
